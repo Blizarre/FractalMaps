@@ -55,7 +55,7 @@ namespace ImageExplorer
     }
 
 
-    class RandomImageGenerator
+    class RandomImageGenerator : ITileGenerator
     {
         Size m_s;
 
@@ -64,7 +64,15 @@ namespace ImageExplorer
             m_s = size;
         }
 
-        public BitmapSource generate(Point origin)
+        public void zoom()   { }
+        public void unZoom() { }
+
+        public string getStats()
+        {
+            return "Nope";
+        }
+
+        public void generateBitmap(Point origin)
         {
             // Define parameters used to create the BitmapSource.
             PixelFormat pf = PixelFormats.Bgr32;
@@ -76,7 +84,7 @@ namespace ImageExplorer
             // Initialize the image with data.
             for (int i = 0; i < rawImage.Length; i++)
             {
-                rawImage[i] = (byte)((Math.Sin(origin.X) * 255 + Math.Sin(origin.Y) * 255) % Byte.MaxValue);
+                rawImage[i] = (byte)((int)(Math.Sin(origin.X) * 255 + Math.Cos(origin.Y) * 255) % Byte.MaxValue);
             }
             
             // Create a BitmapSource.
@@ -84,7 +92,7 @@ namespace ImageExplorer
                 96, 96, pf, null,
                 rawImage, rawStride);
 
-            return bitmap;
+            //return bitmap;
         }
 
     }

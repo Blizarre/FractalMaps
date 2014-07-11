@@ -53,6 +53,8 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
+    <Compile Include="ImageGenerator.cs" />
+    <Compile Include="Mandelbrot.cs" />
     <Compile Include="RandomImageGenerator.cs" />
     <Page Include="Explorer.xaml">
       <SubType>Designer</SubType>
