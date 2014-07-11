@@ -18,11 +18,16 @@ namespace ImageExplorer
         protected int nbZoomChange = 0;
         
         Dictionary<Point, BitmapSource> tileCache = new Dictionary<Point, BitmapSource>();
-        Size tileSize = new Size(128, 128);
-        Point currentPosition = new Point(0, 0);
-        ITileGenerator rm;
+        Size tileSize = new Size(256, 256);
+        Point centerOfImage = new Point(0, 0);
+        
+        ITileGenerator tileGen;
+
         BitmapSource missingImage;
+
         AddImageDelegate addToCache;
+
+        protected float currentScale = 0.01f;
 
         public delegate void AddImageDelegate(Point p, byte[] data);
 
@@ -37,22 +42,21 @@ namespace ImageExplorer
         {
             string data = "Number of tiles in cache, " + this.tileCache.Count + Environment.NewLine;
             data += "Number of zoom change, " + nbZoomChange + Environment.NewLine;
-            return data + rm.getStats();
+            return data + tileGen.getStats();
+        }
+
+        protected Point getScreenSize()
+        {
+            return new Point((int)this.ActualWidth, (int)this.ActualHeight);
         }
 
         protected override void OnMouseWheel(MouseWheelEventArgs e)
         {
             nbZoomChange++;
-            Point p = new Point(e.GetPosition(this));
 
-            if (e.Delta > 0)
-            {
-                this.rm.zoom();
-            }
-            else
-            {
-                this.rm.unZoom();
-            }
+            this.centerOfImage -= getScreenSize() / 2 - new Point(e.GetPosition(this));
+            this.centerOfImage *= (e.Delta > 0 ? 2f : 0.5f);
+            this.currentScale  *= (e.Delta > 0 ? 0.5f : 2.0f);
             resetAllTiles();
         }
 
@@ -60,15 +64,6 @@ namespace ImageExplorer
         {
             this.tileCache.Clear(); 
             this.InvalidateVisual();
-        }
-
-        protected override void OnMouseRightButtonDown(MouseButtonEventArgs e)
-        {
-            if (e.ClickCount > 2)
-            {
-                this.rm.unZoom();
-                resetAllTiles();
-            }
         }
 
         protected override void OnMouseUp(MouseButtonEventArgs e)
@@ -89,13 +84,10 @@ namespace ImageExplorer
             {
                 Point nouveauPoint = new Point(e.GetPosition(this));
                 Point difference = new Point();
-                difference.X = nouveauPoint.X - posMouseDown.Value.X;
-                difference.Y = nouveauPoint.Y - posMouseDown.Value.Y;
+                difference = nouveauPoint - posMouseDown.Value;
                 posMouseDown = nouveauPoint;
-                this.currentPosition.X -= difference.X;
-                this.currentPosition.Y -= difference.Y;
+                this.centerOfImage -= difference;
                 this.InvalidateVisual();
-                //posMouseDown = nouveauPoint; // int truncating will likely cause some problems
             }
         }
 
@@ -107,8 +99,7 @@ namespace ImageExplorer
 
         public Explorer()
         {
-            //rm = new RandomImageGenerator(this.tileSize);
-            rm = new Mandelbrot(this.tileSize, 0.01f, new ImageDone(onImageGenerated));
+            tileGen = new Mandelbrot(this.tileSize, new ImageDone(onImageGenerated));
             this.missingImage = getMissingImage();
             this.addToCache = new AddImageDelegate(addImageToCache);
         }
@@ -129,14 +120,16 @@ namespace ImageExplorer
             int drawingAreaHeight = (int)(current.Width / tileSize.Width) + 2;
             Rect rectangle= new Rect();
             BitmapSource toDraw;
+            
+            Point upperLeftImage = this.centerOfImage - new Point((int)this.ActualWidth, (int)this.ActualHeight) / 2;
 
-            for(int i = -1; i < drawingAreaWidth + 1; i++)
+            for (int i = -1; i < drawingAreaWidth + 1; i++)
             {
-                for(int j = -1; j < drawingAreaHeight + 1; j++)
+                for (int j = -1; j < drawingAreaHeight + 1; j++)
                 {
-                    
-                    Point upperLeftPoint = new Point(this.currentPosition.X + i * tileSize.Width, this.currentPosition.Y + j * tileSize.Height);
-                    Point upperLeftPointNormalized = new Point(tileSize.Width * (int)(upperLeftPoint.X / tileSize.Width), tileSize.Height * (int)(upperLeftPoint.Y / tileSize.Height));
+
+                    Point upperLeftImageTile = new Point(upperLeftImage.X + i * tileSize.Width, upperLeftImage.Y + j * tileSize.Height);
+                    Point upperLeftPointNormalized = new Point(tileSize.Width * (int)(upperLeftImageTile.X / tileSize.Width), tileSize.Height * (int)(upperLeftImageTile.Y / tileSize.Height));
 
                     if(tileCache.ContainsKey(upperLeftPointNormalized))
                     {
@@ -144,11 +137,11 @@ namespace ImageExplorer
                     }
                     else
                     {
-                        rm.generateBitmap(upperLeftPointNormalized);
+                        tileGen.generateBitmap(upperLeftPointNormalized, currentScale);
                         tileCache[upperLeftPointNormalized] = this.missingImage;
                         toDraw = this.missingImage;
                     }
-                    rectangle.Location = new System.Windows.Point(upperLeftPointNormalized.X - this.currentPosition.X, upperLeftPointNormalized.Y - this.currentPosition.Y);
+                    rectangle.Location = new System.Windows.Point(upperLeftPointNormalized.X - upperLeftImage.X, upperLeftPointNormalized.Y - upperLeftImage.Y);
                     rectangle.Width = tileSize.Width;
                     rectangle.Height = tileSize.Height;
                     context.DrawImage(toDraw, rectangle);
@@ -191,5 +184,7 @@ namespace ImageExplorer
         }
 
 
+
+        
     }
 }

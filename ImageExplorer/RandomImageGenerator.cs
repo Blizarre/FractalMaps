@@ -44,7 +44,30 @@ namespace ImageExplorer
             this.Y = (int)point.Y;
         }
 
+        public static Point operator+(Point a, Point b)
+        {
+            return new Point(a.X + b.X, a.Y + b.Y);
+        }
 
+        public static Point operator -(Point a, Point b)
+        {
+            return new Point(a.X - b.X, a.Y - b.Y);
+        }
+
+        public static Point operator -(Point a)
+        {
+            return new Point( - a.X, - a.Y);
+        }
+
+        public static Point operator /(Point a, int div)
+        {
+            return new Point(a.X / div, a.Y / div);
+        }
+
+        public static Point operator *(Point a, float mult)
+        {
+            return new Point((int)(a.X * mult),(int)(a.Y * mult));
+        }
         public String toString()
         {
             return "X:" + this.X + ", X:" + this.Y;
@@ -72,7 +95,7 @@ namespace ImageExplorer
             return "Nope";
         }
 
-        public void generateBitmap(Point origin)
+        public void generateBitmap(Point origin, float scale)
         {
             // Define parameters used to create the BitmapSource.
             PixelFormat pf = PixelFormats.Bgr32;
