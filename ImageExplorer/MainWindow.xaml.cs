@@ -25,6 +25,7 @@ namespace ImageExplorer
         public MainWindow()
         {
             InitializeComponent();
+            cbQuality.SelectedItem = Quality.Fast;
         }
 
         private void btDumpStats_Click(object sender, RoutedEventArgs e)
@@ -39,6 +40,11 @@ namespace ImageExplorer
             {
                 File.WriteAllText(dialog.FileName, data);
             }
+        }
+
+        private void cbQualityChanged(object sender, SelectionChangedEventArgs e)
+        {
+            explorer.quality = (Quality)cbQuality.SelectedItem;
         }
     }
 }

@@ -43,7 +43,7 @@ namespace ImageExplorer
             this.X = (int)point.X;
             this.Y = (int)point.Y;
         }
-
+        
         public static Point operator+(Point a, Point b)
         {
             return new Point(a.X + b.X, a.Y + b.Y);
@@ -95,7 +95,7 @@ namespace ImageExplorer
             return "Nope";
         }
 
-        public void generateBitmap(Point origin, float scale)
+        public void generateBitmap(TileInfo info)
         {
             // Define parameters used to create the BitmapSource.
             PixelFormat pf = PixelFormats.Bgr32;
@@ -107,7 +107,7 @@ namespace ImageExplorer
             // Initialize the image with data.
             for (int i = 0; i < rawImage.Length; i++)
             {
-                rawImage[i] = (byte)((int)(Math.Sin(origin.X) * 255 + Math.Cos(origin.Y) * 255) % Byte.MaxValue);
+                rawImage[i] = (byte)((int)(Math.Sin(info.position.X) * 255 + Math.Cos(info.position.Y) * 255) % Byte.MaxValue);
             }
             
             // Create a BitmapSource.

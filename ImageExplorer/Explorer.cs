@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
 using System.Text;
@@ -12,16 +13,56 @@ using System.Windows.Threading;
 
 namespace ImageExplorer
 {
+    public struct TileInfo
+    {
+        public Point position;
+        public float scale;
+        public Quality quality;
+        public bool isWaitingRendering;
+
+        public TileKey getTileKey() { 
+            return new TileKey(this.position, this.scale); 
+        }
+    };
+
+    public struct TileKey
+    {
+        public TileKey(Point position, float scale)
+        {
+            this.position = position;
+            this.scale = scale;
+        }
+
+        public Point position;
+        public float scale;
+    };
+
+    public struct TileData
+    {
+        public TileInfo meta;
+        public BitmapSource data;
+    };
+
+    public enum Quality {
+        UltraFast,
+        Fast,
+        Normal,
+        Best,
+        VeryBest
+    };
+
     public partial class Explorer : FrameworkElement
     {
-
         protected int nbZoomChange = 0;
-        
-        Dictionary<Point, BitmapSource> tileCache = new Dictionary<Point, BitmapSource>();
+        Quality currentQuality;
+
+        Dictionary<TileKey, TileData> tileCache = new Dictionary<TileKey, TileData>();
+
         Size tileSize = new Size(256, 256);
         Point centerOfImage = new Point(0, 0);
         
         ITileGenerator tileGen;
+        int numberOfTileInGeneration;
 
         BitmapSource missingImage;
 
@@ -29,7 +70,7 @@ namespace ImageExplorer
 
         protected float currentScale = 0.01f;
 
-        public delegate void AddImageDelegate(Point p, byte[] data);
+        public delegate void AddImageDelegate(TileInfo inf, byte[] data);
 
         public Point? posMouseDown = null;
 
@@ -41,6 +82,7 @@ namespace ImageExplorer
         public string getStats()
         {
             string data = "Number of tiles in cache, " + this.tileCache.Count + Environment.NewLine;
+            data += "Number Of Tile In Generation: " + numberOfTileInGeneration + Environment.NewLine;
             data += "Number of zoom change, " + nbZoomChange + Environment.NewLine;
             return data + tileGen.getStats();
         }
@@ -57,12 +99,6 @@ namespace ImageExplorer
             this.centerOfImage -= getScreenSize() / 2 - new Point(e.GetPosition(this));
             this.centerOfImage *= (e.Delta > 0 ? 2f : 0.5f);
             this.currentScale  *= (e.Delta > 0 ? 0.5f : 2.0f);
-            resetAllTiles();
-        }
-
-        protected void resetAllTiles()
-        {
-            this.tileCache.Clear(); 
             this.InvalidateVisual();
         }
 
@@ -113,57 +149,77 @@ namespace ImageExplorer
 
         protected override void OnRender(DrawingContext context)
         {
-            DateTime begin = DateTime.Now;
-            System.Windows.Size current = this.RenderSize;
             // cast to int : truncate
-            int drawingAreaWidth = (int)(current.Width / tileSize.Width) + 2;
-            int drawingAreaHeight = (int)(current.Width / tileSize.Width) + 2;
+            int drawingAreaWidth = (int)(this.RenderSize.Width / tileSize.Width) + 2;
+            int drawingAreaHeight = (int)(this.RenderSize.Width / tileSize.Width) + 2;
             Rect rectangle= new Rect();
             BitmapSource toDraw;
-            
+            TileInfo tileInf;
+            TileData tileDat;
+            TileKey tk;
             Point upperLeftImage = this.centerOfImage - new Point((int)this.ActualWidth, (int)this.ActualHeight) / 2;
-
+            // TODO: Needs heavy refactoring, code cleaning
             for (int i = -1; i < drawingAreaWidth + 1; i++)
             {
                 for (int j = -1; j < drawingAreaHeight + 1; j++)
                 {
 
                     Point upperLeftImageTile = new Point(upperLeftImage.X + i * tileSize.Width, upperLeftImage.Y + j * tileSize.Height);
-                    Point upperLeftPointNormalized = new Point(tileSize.Width * (int)(upperLeftImageTile.X / tileSize.Width), tileSize.Height * (int)(upperLeftImageTile.Y / tileSize.Height));
+                    
+                    tileInf = new TileInfo();
+                    tileInf.position = new Point(tileSize.Width * (int)(upperLeftImageTile.X / tileSize.Width), tileSize.Height * (int)(upperLeftImageTile.Y / tileSize.Height));
+                    tileInf.scale = this.currentScale;
+                    tileInf.quality = this.currentQuality;
+                    tk = tileInf.getTileKey();
 
-                    if(tileCache.ContainsKey(upperLeftPointNormalized))
+                    if (tileCache.ContainsKey(tk))
                     {
-                        toDraw = tileCache[upperLeftPointNormalized];
+                        if (tileCache[tk].meta.isWaitingRendering == false && tileCache[tk].meta.quality < this.currentQuality)
+                        {
+                            TileData data = tileCache[tk];
+                            data.meta.isWaitingRendering = true;
+                            tileCache[tk] = data;
+                            tileGen.generateBitmap(tileInf);
+                            numberOfTileInGeneration++;
+                        }
+                        toDraw = tileCache[tk].data;
                     }
                     else
                     {
-                        tileGen.generateBitmap(upperLeftPointNormalized, currentScale);
-                        tileCache[upperLeftPointNormalized] = this.missingImage;
+                        tileInf.isWaitingRendering = true;
+                        tileGen.generateBitmap(tileInf);
+                        numberOfTileInGeneration++;
+                        tileDat = new TileData();
+                        tileDat.meta = tileInf;
+                        tileDat.data = this.missingImage;
+                        tileCache[tk] = tileDat;
                         toDraw = this.missingImage;
                     }
-                    rectangle.Location = new System.Windows.Point(upperLeftPointNormalized.X - upperLeftImage.X, upperLeftPointNormalized.Y - upperLeftImage.Y);
+                    rectangle.Location = new System.Windows.Point(tileInf.position.X - upperLeftImage.X, tileInf.position.Y - upperLeftImage.Y);
                     rectangle.Width = tileSize.Width;
                     rectangle.Height = tileSize.Height;
                     context.DrawImage(toDraw, rectangle);
                 }
             }
-           
+
+
             DateTime end = DateTime.Now;
 
             FormattedText formattedText = new FormattedText(
-                "RenderingTime:" + (int)(end - begin).TotalMilliseconds + "ms.",
-                CultureInfo.GetCultureInfo("fr-fr"),
+                numberOfTileInGeneration.ToString(),
+                CultureInfo.CurrentCulture,
                 FlowDirection.LeftToRight,
                 new Typeface("Verdana"),
                 20,
                 Brushes.Blue
             );
-            context.DrawText(formattedText, new System.Windows.Point(20, 20));
+            context.DrawText(formattedText, new System.Windows.Point(200, 20));
+
 
         }
 
         
-        void addImageToCache(Point p, byte[] rawImage)
+        void addImageToCache(TileInfo info, byte[] rawImage)
         {
             // Create a BitmapSource.
             PixelFormat pf = PixelFormats.Bgr32;
@@ -171,20 +227,32 @@ namespace ImageExplorer
             BitmapSource bitmap = BitmapSource.Create(this.tileSize.Width, this.tileSize.Height,
                 96, 96, pf, null,
                 rawImage, rawStride);
-            tileCache[p] = bitmap;
+            TileData td;
+            info.isWaitingRendering = false;
+            td.meta = info;
+            td.data = bitmap;
+            tileCache[info.getTileKey()] = td;
             this.InvalidateVisual();
         }
 
-        void onImageGenerated(Point p, byte[] rawImage)
+        void onImageGenerated(TileInfo info, byte[] rawImage)
         {
-            Object[] objs = new Object[2];
-            objs[0] = p;
-            objs[1] = rawImage;
-            Dispatcher.BeginInvoke(DispatcherPriority.Background, this.addToCache, p, rawImage);
+            numberOfTileInGeneration--;
+            Dispatcher.BeginInvoke(DispatcherPriority.Background, this.addToCache, info, rawImage);
         }
 
-
-
-        
+        public Quality quality
+        {
+            set
+            {
+                if (value != currentQuality)
+                    this.currentQuality = value;
+                this.InvalidateVisual();
+            }
+            get
+            {
+                return this.currentQuality;
+            }
+        }
     }
 }
