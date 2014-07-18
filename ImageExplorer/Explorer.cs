@@ -16,7 +16,7 @@ namespace ImageExplorer
     public struct TileInfo
     {
         public Point position;
-        public float scale;
+        public double scale;
         public Quality quality;
         public bool isWaitingRendering;
 
@@ -25,16 +25,17 @@ namespace ImageExplorer
         }
     };
 
+    // TODO: Warning - Replace scale by integer
     public struct TileKey
     {
-        public TileKey(Point position, float scale)
+        public TileKey(Point position, double scale)
         {
             this.position = position;
             this.scale = scale;
         }
 
         public Point position;
-        public float scale;
+        public double scale;
     };
 
     public struct TileData
@@ -68,7 +69,7 @@ namespace ImageExplorer
 
         AddImageDelegate addToCache;
 
-        protected float currentScale = 0.01f;
+        protected double currentScale = 0.01f;
 
         public delegate void AddImageDelegate(TileInfo inf, byte[] data);
 
@@ -82,9 +83,10 @@ namespace ImageExplorer
         public string getStats()
         {
             StringBuilder data = new StringBuilder();
-            data.AppendLine("Number of tiles in cache, " + this.tileCache.Count);
+            data.AppendLine("Current View: " + this.centerOfImage + ", scale: " + this.currentScale);
+            data.AppendLine("Number of tiles in cache: " + this.tileCache.Count);
             data.AppendLine("Number Of Tile awaiting generation: " + numberOfTileInGeneration);
-            data.AppendLine("Number of zoom change, " + nbZoomChange);
+            data.AppendLine("Number of zoom change: " + nbZoomChange);
             data.AppendLine("Cached Images :");
             foreach( TileKey k in tileCache.Keys)
             {
