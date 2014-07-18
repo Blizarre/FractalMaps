@@ -68,9 +68,9 @@ namespace ImageExplorer
         {
             return new Point((int)(a.X * mult),(int)(a.Y * mult));
         }
-        public String toString()
+        public override string ToString()
         {
-            return "X:" + this.X + ", X:" + this.Y;
+            return String.Format("({0,4}, {1,4})", this.X, this.Y);
         }
 
         public int X;

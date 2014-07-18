@@ -16,8 +16,10 @@
     <Grid>
         <!-- Work a bit more on bindings to bind Quality to the comboBox -->
         <custom:Explorer x:Name="explorer"/>
-        <Button x:Name="btDumpStats" Content="Dump statistics" HorizontalAlignment="Left" VerticalAlignment="Top" Click="btDumpStats_Click"/>
+        <Button Content="Dump statistics" HorizontalAlignment="Left" VerticalAlignment="Top" Click="btDumpStats_Click"/>
         <ComboBox x:Name="cbQuality" HorizontalAlignment="Left" VerticalAlignment="Top" Width="120" Margin="0,25,0,0" SelectionChanged="cbQualityChanged" ItemsSource="{Binding Source={StaticResource eQuality}}"/>
+        <Button Content="Start/Stop Rendering" HorizontalAlignment="Left" Margin="0,52,0,0" VerticalAlignment="Top" Width="120" Click="btStopRendering_Click"/>
+        <Button Content="Reset Cache" HorizontalAlignment="Left" Margin="0,77,0,0" VerticalAlignment="Top" Width="75" Click="btResetCache_Click" />
 
     </Grid>
 </Window>

@@ -42,9 +42,21 @@ namespace ImageExplorer
             }
         }
 
+        private void btStopRendering_Click(object sender, RoutedEventArgs e)
+        {
+            explorer.cont = !explorer.cont;
+        }
+        
+
         private void cbQualityChanged(object sender, SelectionChangedEventArgs e)
         {
             explorer.quality = (Quality)cbQuality.SelectedItem;
         }
+
+        private void btResetCache_Click(object sender, RoutedEventArgs e)
+        {
+            explorer.ResetCache();
+        }
+        
     }
 }
