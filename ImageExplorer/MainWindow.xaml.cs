@@ -44,7 +44,7 @@ namespace ImageExplorer
 
         private void btStopRendering_Click(object sender, RoutedEventArgs e)
         {
-            explorer.cont = !explorer.cont;
+            explorer.m_generateTiles = !explorer.m_generateTiles;
         }
         
 

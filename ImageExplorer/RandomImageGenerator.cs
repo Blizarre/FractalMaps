@@ -82,6 +82,8 @@ namespace ImageExplorer
     {
         Size m_s;
 
+        public void Dispose() { }
+
         public RandomImageGenerator(Size size)
         {
             m_s = size;

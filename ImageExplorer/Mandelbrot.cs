@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -31,24 +33,26 @@ namespace ImageExplorer
         public byte a;
     };
 
-    class Mandelbrot : ITileGenerator
+    class Mandelbrot : ITileGenerator, IDisposable
     {
         protected Size m_s;
         protected ImageDone callback;
         int[] histo = new int[1000];
         Pixel[] lut = new Pixel[255];
         int nbOverflow = 0;
+        ThreadedQueue<TileInfo> tq;
 
         public Mandelbrot(Size size, ImageDone onImDone)
         {
+            ParameterizedThreadStart th = new ParameterizedThreadStart(this.ThreadPoolGenerateBitmap);
+            this.tq = new ThreadedQueue<TileInfo>(3, th);
             this.m_s = size;
             this.callback = onImDone;
             generateLUT();
-            ThreadPool.SetMaxThreads(1, 1); // 1 < number of core => number of threads will be set at number of core, see msdn
         }
 
         // copy/paste from wikipedia   
-        public double mandelbrotFunction(double x0, double y0, int maxIter, double N, bool smooth)
+        public static double mandelbrotFunction(double x0, double y0, int maxIter, double N, bool smooth)
         {
             int iter = 0;
             double retValue;
@@ -106,80 +110,92 @@ namespace ImageExplorer
             }
         }
 
-        // object[] o = { Point origin, double scale, Quality q};
-        public void ThreadPoolGenerateBitmap(object o)
+        public void ThreadPoolGenerateBitmap(object bColl)
         {
-            TileInfo info = (TileInfo)o;
-            double N = 2.0f;
-            int maxIter = 100;
-            bool smooth =false;
+            BlockingCollection<TileInfo> bc = (BlockingCollection<TileInfo>)bColl;
+            TileInfo info;
+            bool cont = true;
 
-            int renderWidth = this.m_s.Width;
-            int renderHeight = this.m_s.Height;
-
-            // replace with global quality constants
-            switch (info.quality)
+            while (cont)
             {
-                case Quality.UltraFast:
-                /*    info.scale /= 2;
-                    renderWidth /= 2;
-                    renderHeight /= 2;*/
-                    goto case Quality.Fast;
-                case Quality.Fast:
-                    N = 2.0f;
-                    maxIter = 200;
-                    smooth = false;
-                    break;
-                case Quality.Normal:
-                    N = 4.0f;
-                    maxIter = 1000;
-                    smooth = true;
-                    break;
-                case Quality.Best:
-                case Quality.VeryBest:
-                    N = 8.0f;
-                    maxIter = 2000;
-                    smooth = true;
-                    break;
-            }
+                info = bc.Take();
+                double N = 2.0f;
+                int maxIter = 100;
+                bool smooth = false;
 
-            byte[] rawData = new byte[4 * renderWidth * renderHeight];
-            Pixel p = new Pixel(255);
+                int renderWidth = this.m_s.Width;
+                int renderHeight = this.m_s.Height;
 
-            uint value;
-            int position = 0;
-
-            for (int j = info.position.Y; j < info.position.Y + renderHeight; j++)
-            {
-                for (int i = info.position.X; i < info.position.X + renderWidth; i++)
+                // replace with global quality constants
+                switch (info.quality)
                 {
-                    value = (uint)mandelbrotFunction(i * info.scale, j * info.scale, maxIter, N, smooth);
-
-                    if (value < histo.Length)
-                        histo[value]++;
-
-                    if (value > this.lut.Length - 1)
-                    {
-                        this.nbOverflow++;
-                        value = (uint)(this.lut.Length - 1);
-                    }
-
-                    p = this.lut[value];
-
-                    rawData[position++] = p.b;
-                    rawData[position++] = p.g;
-                    rawData[position++] = p.r;
-                    rawData[position++] = p.a;
+                    case Quality.UltraFast:
+                        /*    info.scale /= 2;
+                            renderWidth /= 2;
+                            renderHeight /= 2;*/
+                        goto case Quality.Fast;
+                    case Quality.Fast:
+                        N = 2.0f;
+                        maxIter = 200;
+                        smooth = false;
+                        break;
+                    case Quality.Normal:
+                        N = 4.0f;
+                        maxIter = 1000;
+                        smooth = true;
+                        break;
+                    case Quality.Best:
+                    case Quality.VeryBest:
+                        N = 8.0f;
+                        maxIter = 2000;
+                        smooth = true;
+                        break;
                 }
-            }
 
-            this.callback(info, rawData);
+                byte[] rawData = new byte[4 * renderWidth * renderHeight];
+                Pixel p = new Pixel(255);
+
+                uint value;
+                int position = 0;
+
+                for (int j = info.position.Y; j < info.position.Y + renderHeight; j++)
+                {
+                    for (int i = info.position.X; i < info.position.X + renderWidth; i++)
+                    {
+                        value = (uint)mandelbrotFunction(i * info.scale, j * info.scale, maxIter, N, smooth);
+
+                        if (value < histo.Length)
+                            histo[value]++;
+
+                        if (value > this.lut.Length - 1)
+                        {
+                            this.nbOverflow++;
+                            value = (uint)(this.lut.Length - 1);
+                        }
+
+                        p = this.lut[value];
+
+                        rawData[position++] = p.b;
+                        rawData[position++] = p.g;
+                        rawData[position++] = p.r;
+                        rawData[position++] = p.a;
+                    }
+                }
+
+                this.callback(info, rawData);
+            }
+        }
+
+        public void Dispose()
+        {
+            this.tq.Dispose();
         }
 
         public void generateBitmap(TileInfo tInfo)
         {
             // TODO : Create a specialized thread pool with reduced priority
-            ThreadPool.QueueUserWorkItem(ThreadPoolGenerateBitmap, tInfo);
+            //ThreadPool.QueueUserWorkItem(ThreadPoolGenerateBitmap, tInfo);
+            this.tq.addElement(tInfo);
 
         }
 

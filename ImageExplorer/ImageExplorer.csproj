@@ -54,7 +54,7 @@
       <SubType>Designer</SubType>
     </ApplicationDefinition>
     <Compile Include="ImageGenerator.cs" />
-    <Compile Include="LowPriorityThreadPool.cs" />
+    <Compile Include="ThreadedQueue.cs" />
     <Compile Include="Mandelbrot.cs" />
     <Compile Include="RandomImageGenerator.cs" />
     <Page Include="Explorer.xaml">

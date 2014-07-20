@@ -7,7 +7,7 @@ using System.Windows.Media.Imaging;
 
 namespace ImageExplorer
 {
-    interface ITileGenerator
+    interface ITileGenerator:IDisposable
     {
         // Async generation
         void generateBitmap(TileInfo tInfo);

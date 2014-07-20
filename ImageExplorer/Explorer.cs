@@ -59,21 +59,22 @@ namespace ImageExplorer
 
         Dictionary<TileKey, TileData> tileCache = new Dictionary<TileKey, TileData>();
 
-        Size tileSize = new Size(256, 256);
-        Point centerOfImage = new Point(0, 0);
-        
-        ITileGenerator tileGen;
+        Size m_tileSize = new Size(256, 256);
+        Point m_centerOfImage = new Point(0, 0);
+        ITileGenerator m_tileGen;
         int numberOfTileInGeneration;
 
-        BitmapSource missingImage;
+        BitmapSource m_missingImage;
 
         AddImageDelegate addToCache;
 
-        protected double currentScale = 0.01f;
+        // TODO: Implement as Integer
+        protected double m_currentScale = 0.01f;
 
         public delegate void AddImageDelegate(TileInfo inf, byte[] data);
 
         public Point? posMouseDown = null;
+        public bool m_generateTiles = true;
 
         protected override void OnMouseDown(MouseButtonEventArgs e)
         {
@@ -83,7 +84,7 @@ namespace ImageExplorer
         public string getStats()
         {
             StringBuilder data = new StringBuilder();
-            data.AppendLine("Current View: " + this.centerOfImage + ", scale: " + this.currentScale);
+            data.AppendLine("Current View: " + this.m_centerOfImage + ", scale: " + this.m_currentScale);
             data.AppendLine("Number of tiles in cache: " + this.tileCache.Count);
             data.AppendLine("Number Of Tile awaiting generation: " + numberOfTileInGeneration);
             data.AppendLine("Number of zoom change: " + nbZoomChange);
@@ -92,7 +93,7 @@ namespace ImageExplorer
             {
                 data.AppendLine(" - " + k.position + ", scale " + k.scale + ", quality: " + tileCache[k].meta.quality);
             }
-            data.Append(tileGen.getStats());
+            data.Append(m_tileGen.getStats());
             return data.ToString();
         }
 
@@ -105,9 +106,9 @@ namespace ImageExplorer
         {
             nbZoomChange++;
 
-            this.centerOfImage -= getScreenSize() / 2 - new Point(e.GetPosition(this));
-            this.centerOfImage *= (e.Delta > 0 ? 2f : 0.5f);
-            this.currentScale  *= (e.Delta > 0 ? 0.5f : 2.0f);
+            this.m_centerOfImage -= getScreenSize() / 2 - new Point(e.GetPosition(this));
+            this.m_centerOfImage *= (e.Delta > 0 ? 2f : 0.5f);
+            this.m_currentScale  *= (e.Delta > 0 ? 0.5f : 2.0f);
             this.InvalidateVisual();
         }
 
@@ -131,7 +132,7 @@ namespace ImageExplorer
                 Point difference = new Point();
                 difference = nouveauPoint - posMouseDown.Value;
                 posMouseDown = nouveauPoint;
-                this.centerOfImage -= difference;
+                this.m_centerOfImage -= difference;
                 this.InvalidateVisual();
             }
         }
@@ -144,40 +145,46 @@ namespace ImageExplorer
 
         public Explorer()
         {
-            tileGen = new Mandelbrot(this.tileSize, new ImageDone(onImageGenerated));
-            this.missingImage = getMissingImage();
+            m_tileGen = new Mandelbrot(this.m_tileSize, new ImageDone(onImageGenerated));
+            this.m_missingImage = getMissingImage();
             this.addToCache = new AddImageDelegate(addImageToCache);
+            Dispatcher.ShutdownStarted += Dispatcher_ShutdownStarted;
+        }
+
+        void Dispatcher_ShutdownStarted(object sender, EventArgs e)
+        {
+            this.m_tileGen.Dispose();
         }
 
         private BitmapSource getMissingImage()
         {
             PixelFormat pf = PixelFormats.Bgr32;
-            byte[] rawImage = new byte[4 * this.tileSize.Width * this.tileSize.Height];
-            return BitmapSource.Create(this.tileSize.Width, this.tileSize.Height, 96, 96, pf, null, rawImage, 4 * this.tileSize.Width);
+            byte[] rawImage = new byte[4 * this.m_tileSize.Width * this.m_tileSize.Height];
+            return BitmapSource.Create(this.m_tileSize.Width, this.m_tileSize.Height, 96, 96, pf, null, rawImage, 4 * this.m_tileSize.Width);
         }
-        public bool cont = true;
+
         protected override void OnRender(DrawingContext context)
         {
             // cast to int : truncate
-            int drawingAreaWidth = (int)(this.RenderSize.Width / tileSize.Width) + 2;
-            int drawingAreaHeight = (int)(this.RenderSize.Width / tileSize.Width) + 2;
+            int drawingAreaWidth = (int)(this.RenderSize.Width / m_tileSize.Width) + 2;
+            int drawingAreaHeight = (int)(this.RenderSize.Width / m_tileSize.Width) + 2;
             Rect rectangle= new Rect();
             BitmapSource toDraw;
             TileInfo tileInf;
             TileData tileDat;
             TileKey tk;
-            Point upperLeftImage = this.centerOfImage - new Point((int)this.ActualWidth, (int)this.ActualHeight) / 2;
+            Point upperLeftImage = this.m_centerOfImage - new Point((int)this.ActualWidth, (int)this.ActualHeight) / 2;
             // TODO: Needs heavy refactoring, code cleaning
             for (int i = -1; i < drawingAreaWidth + 1; i++)
             {
                 for (int j = -1; j < drawingAreaHeight + 1; j++)
                 {
 
-                    Point upperLeftImageTile = new Point(upperLeftImage.X + i * tileSize.Width, upperLeftImage.Y + j * tileSize.Height);
+                    Point upperLeftImageTile = new Point(upperLeftImage.X + i * m_tileSize.Width, upperLeftImage.Y + j * m_tileSize.Height);
 
                     tileInf = new TileInfo();
-                    tileInf.position = new Point(tileSize.Width * (int)(upperLeftImageTile.X / tileSize.Width), tileSize.Height * (int)(upperLeftImageTile.Y / tileSize.Height));
-                    tileInf.scale = this.currentScale;
+                    tileInf.position = new Point(m_tileSize.Width * (int)(upperLeftImageTile.X / m_tileSize.Width), m_tileSize.Height * (int)(upperLeftImageTile.Y / m_tileSize.Height));
+                    tileInf.scale = this.m_currentScale;
                     tileInf.quality = this.currentQuality;
                     
                     tk = tileInf.getTileKey();
@@ -190,7 +197,7 @@ namespace ImageExplorer
                             TileData data = tileCache[tk];
                             data.meta.isWaitingRendering = true;
                             tileCache[tk] = data;
-                            tileGen.generateBitmap(tileInf);
+                            m_tileGen.generateBitmap(tileInf);
                             numberOfTileInGeneration++;
                         }
                         toDraw = tileCache[tk].data;
@@ -209,8 +216,8 @@ namespace ImageExplorer
                         tileDat.meta.scale = tmp.scale;
 
                         // Position of the tile on the parent image
-                        int posXParent = (int)Math.Round((tileInf.position.X / this.tileSize.Width - 0.5) / 2, MidpointRounding.AwayFromZero) * this.tileSize.Width;
-                        int posYParent = (int)Math.Round((tileInf.position.Y / this.tileSize.Height - 0.25) / 2, MidpointRounding.AwayFromZero) * this.tileSize.Height;
+                        int posXParent = (int)Math.Round((tileInf.position.X / this.m_tileSize.Width - 0.5) / 2, MidpointRounding.AwayFromZero) * this.m_tileSize.Width;
+                        int posYParent = (int)Math.Round((tileInf.position.Y / this.m_tileSize.Height - 0.25) / 2, MidpointRounding.AwayFromZero) * this.m_tileSize.Height;
 
                         int resteX = Math.Abs( (tileInf.position.X/2) % 256 );
                         int resteY = Math.Abs( (tileInf.position.Y/2) % 256 ); 
@@ -219,26 +226,25 @@ namespace ImageExplorer
                         if (tileCache.ContainsKey(tmp))
                         {
                             // something like that
-                            CroppedBitmap cBm = new CroppedBitmap(tileCache[tmp].data, new Int32Rect(resteX, resteY , (int)(this.tileSize.Width / 2), (int)(this.tileSize.Height / 2)));
+                            CroppedBitmap cBm = new CroppedBitmap(tileCache[tmp].data, new Int32Rect(resteX, resteY , (int)(this.m_tileSize.Width / 2), (int)(this.m_tileSize.Height / 2)));
                             TransformedBitmap tBm = new TransformedBitmap(cBm, new ScaleTransform(2, 2));
 
                             tileDat.data = tBm; //tileCache[tmp].data;
                         }
                         else
                         {
-                            tileDat.data = this.missingImage;
+                            tileDat.data = this.m_missingImage;
                         }
                         tileInf.isWaitingRendering = true;
-
-                        if (cont)
-                            tileGen.generateBitmap(tileInf);
+                        if(this.m_generateTiles)
+                            m_tileGen.generateBitmap(tileInf);
                         numberOfTileInGeneration++;
                         tileCache[tk] = tileDat;
-                        toDraw = this.missingImage;
+                        toDraw = this.m_missingImage;
                     }
                     rectangle.Location = new System.Windows.Point(tileInf.position.X - upperLeftImage.X, tileInf.position.Y - upperLeftImage.Y);
-                    rectangle.Width = tileSize.Width;
-                    rectangle.Height = tileSize.Height;
+                    rectangle.Width = m_tileSize.Width;
+                    rectangle.Height = m_tileSize.Height;
                     context.DrawImage(toDraw, rectangle);
                 }
             }
@@ -278,15 +284,15 @@ namespace ImageExplorer
             rawImage[5] = 255;
             rawImage[6] = 255;
 
-            rawImage[(this.tileSize.Width-1) * 4] = 255;
-            rawImage[(this.tileSize.Width-1) * 4 + 1] = 255;
-            rawImage[(this.tileSize.Width-1) * 4 + 2] = 255;
+            rawImage[(this.m_tileSize.Width-1) * 4] = 255;
+            rawImage[(this.m_tileSize.Width-1) * 4 + 1] = 255;
+            rawImage[(this.m_tileSize.Width-1) * 4 + 2] = 255;
 
             // Generate Bitmap 
 
             PixelFormat pf = PixelFormats.Bgr32;
-            int rawStride = (this.tileSize.Width * pf.BitsPerPixel) / 8;
-            BitmapSource bitmap = BitmapSource.Create(this.tileSize.Width, this.tileSize.Height,
+            int rawStride = (this.m_tileSize.Width * pf.BitsPerPixel) / 8;
+            BitmapSource bitmap = BitmapSource.Create(this.m_tileSize.Width, this.m_tileSize.Height,
                 96, 96, pf, null,
                 rawImage, rawStride);
             TileData td;
